@@ -1,0 +1,5 @@
+model_checkpoint_path: "crnn_7100.ckpt-2800"
+all_model_checkpoint_paths: "crnn_6514.ckpt-400"
+all_model_checkpoint_paths: "crnn_7035.ckpt-800"
+all_model_checkpoint_paths: "crnn_7035.ckpt-2000"
+all_model_checkpoint_paths: "crnn_7100.ckpt-2800"
