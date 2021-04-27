@@ -30,7 +30,16 @@ from __future__ import print_function
 import argparse
 import sys
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 import tensorflow as tf
+
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+
+import time
 
 # pylint: disable=unused-import
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
@@ -38,6 +47,7 @@ from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 
 FLAGS = None
 
+times = []
 
 def load_graph(filename):
   """Unpersists graph from file as default graph."""
@@ -54,6 +64,7 @@ def load_labels(filename):
 
 def run_graph(wav_data, labels, input_layer_name, output_layer_name,
               num_top_predictions):
+  times.append(time.clock())
   """Runs the audio data through the graph and prints predictions."""
   with tf.Session() as sess:
     # Feed the audio data as input to the graph.
@@ -69,11 +80,15 @@ def run_graph(wav_data, labels, input_layer_name, output_layer_name,
       human_string = labels[node_id]
       score = predictions[node_id]
       print('%s (score = %.5f)' % (human_string, score))
-
+    times.append(time.clock())
+    print(str(times[1] - times[0]) + " - Load audio")
+    print(str(times[2] - times[1]) + " - Run model")
+    #print(times[3] - times[2])
     return 0
 
 
 def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
+  times.append(time.clock())
   """Loads the model and labels, and runs the inference to print predictions."""
   if not wav or not tf.gfile.Exists(wav):
     tf.logging.fatal('Audio file does not exist %s', wav)
@@ -102,13 +117,14 @@ def main(_):
 
 
 if __name__ == '__main__':
+  times.append(time.clock())
   parser = argparse.ArgumentParser()
   parser.add_argument(
       '--wav', type=str, default='', help='Audio file to be identified.')
   parser.add_argument(
       '--graph', type=str, default='', help='Model to use for identification.')
   parser.add_argument(
-      '--labels', type=str, default='', help='Path to file containing labels.')
+      '--labels', type=str, default='Pretrained_models/labels.txt', help='Path to file containing labels.')
   parser.add_argument(
       '--input_name',
       type=str,

@@ -37,3 +37,6 @@ python train.py --model_architecture crnn --model_size_info 100 10 4 2 1 2 136 1
 python Audio_Input_Processing/audio_processor.py Audio_Input_Processing/voice_command_other.wav -m 0.27 -o Audio_Input/Other -t 1e-4
 python test.py --model_architecture crnn --model_size_info 100 10 4 2 1 2 136 188 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --checkpoint tmp/harry_debug/best/crnn_8695.ckpt-800 --data_dir Audio_Input/Harry-Hanrui
 python test.py --model_architecture crnn --model_size_info 100 10 4 2 1 2 136 188 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --checkpoint tmp/harry_debug/best/crnn_7839.ckpt-1600 --data_dir Audio_Input/Harry
+python test.py --model_architecture crnn --model_size_info 100 10 4 2 1 2 136 188 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --checkpoint tmp/harry_debug/02_09/Longer/crnn_9313.ckpt-14800 --data_dir Audio_Input/Harry
+python label_wav.py --wav output.wav --graph Pretrained_models/CRNN/CRNN_L.pb
+python freeze.py --model_architecture crnn --model_size_info 100 10 4 2 1 2 136 188 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --checkpoint tmp/harry_debug/03_09/Resampled_Six_People/crnn_9781.ckpt-6800 --output_file tmp/harry_debug/ten_words.pb

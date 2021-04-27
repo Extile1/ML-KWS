@@ -1,23 +1,113 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import pyaudio
 import time
 import numpy as np
 import wave
-import label_wav
 import subprocess
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import argparse
+import sys
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+import tensorflow as tf
+
+import label_wav as lw
+
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+
+def load_graph(filename):
+  """Unpersists graph from file as default graph."""
+  with tf.gfile.FastGFile(filename, 'rb') as f:
+    graph_def = tf.GraphDef()
+    graph_def.ParseFromString(f.read())
+    tf.import_graph_def(graph_def, name='')
 
 
-chunk = 1024  # Record in chunks of 1024 samples
+def load_labels(filename):
+  """Read in labels, one label per line."""
+  return [line.rstrip() for line in tf.gfile.GFile(filename)]
+
+
+def run_graph(wav_data, labels, input_layer_name, output_layer_name,
+              num_top_predictions, times):
+  times.append(time.clock())
+  """Runs the audio data through the graph and prints predictions."""
+  with tf.Session() as sess:
+    # Feed the audio data as input to the graph.
+    #   predictions  will contain a two-dimensional array, where one
+    #   dimension represents the input image count, and the other has
+    #   predictions per class
+    softmax_tensor = sess.graph.get_tensor_by_name(output_layer_name)
+    predictions, = sess.run(softmax_tensor, {input_layer_name: wav_data})
+
+    # Sort to show labels in order of confidence
+    top_k = predictions.argsort()[-num_top_predictions:][::-1]
+    for node_id in top_k:
+      human_string = labels[node_id]
+      score = predictions[node_id]
+      print('%s (score = %.5f)' % (human_string, score))
+    times.append(time.clock())
+    print(str(times[1] - times[0]) + " - Load audio")
+    print(str(times[2] - times[1]) + " - Run model")
+    #print(times[3] - times[2])
+    return 0
+
+
+def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
+  times = [time.clock()]
+  """Loads the model and labels, and runs the inference to print predictions."""
+  if not wav or not tf.gfile.Exists(wav):
+    tf.logging.fatal('Audio file does not exist %s', wav)
+
+  if not labels or not tf.gfile.Exists(labels):
+    tf.logging.fatal('Labels file does not exist %s', labels)
+
+  if not graph or not tf.gfile.Exists(graph):
+    tf.logging.fatal('Graph file does not exist %s', graph)
+
+  labels_list = load_labels(labels)
+
+  # load graph, which is stored in the default session
+  load_graph(graph)
+
+  with open(wav, 'rb') as wav_file:
+    wav_data = wav_file.read()
+
+  run_graph(wav_data, labels_list, input_name, output_name, how_many_labels, times)
+
+chunk = 4000  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
-fs = 44100  # Record at 44100 samples per second
-seconds = 2
-filename = "output.wav"
+fs = 16000  # Record at 44100 samples per second
+seconds = 1
+clip_length = 1.5
+filename = "output"
+threshold = 500
+window = 0.25 #min time between clips
+
+def is_silent(snd_data):
+    "Returns 'True' if below the 'silent' threshold"
+    return max(snd_data) < threshold
+
+def normalize(snd_data):
+    "Average the volume out"
+    MAXIMUM = 16384
+    times = float(MAXIMUM)/max(abs(i) for i in snd_data)
+
+    r = []
+    for i in snd_data:
+        r.append(int(i*times))
+    return r
 
 p = pyaudio.PyAudio()  # Create an interface to PortAudio
 
 print('Recording')
+
 
 stream = p.open(format=sample_format,
                 channels=channels,
@@ -26,11 +116,52 @@ stream = p.open(format=sample_format,
                 input=True)
 
 frames = []  # Initialize array to store frames
+frames_byte = []
+temp_frames = []
+index = 0
 
+count = 0
+start = time.process_time()
 # Store data in chunks for 3 seconds
 for i in range(0, int(fs / chunk * seconds)):
+    times = [time.clock()]
     data = stream.read(chunk)
-    frames.append(data)
+    frames.extend(data)
+    frames_byte.append(data)
+    temp_frames.append(data)
+    print(data)
+
+    times.append(time.clock())
+
+    if (len(temp_frames) > int(fs / chunk * clip_length)):
+        temp_frames.pop(0)
+
+    wf = wave.open("Live_Input/" + filename + str(count) + ".wav", 'wb')
+    wf.setnchannels(channels)
+    wf.setsampwidth(p.get_sample_size(sample_format))
+    wf.setframerate(fs)
+    wf.writeframes(b''.join(temp_frames))
+    wf.close()
+
+    times.append(time.clock())
+
+    print(count)
+    #os.system("python label_wav.py --wav Live_Input/" + filename + str(count) + ".wav --graph tmp/harry_debug/ten_words.pb --labels Pretrained_models\labels.txt --how_many_labels 3")
+    label_wav("Live_Input/" + filename + str(count) + ".wav",
+                        "Pretrained_models\labels.txt",
+                        "tmp/harry_debug/ten_words.pb",
+                        "wav_data:0",
+                        "labels_softmax:0",
+                        3)
+    times.append(time.clock())
+    print(str(times[1] - times[0]) + " - Load audio")
+    print(str(times[2] - times[1]) + " - Save audio")
+    print(str(times[3] - times[2]) + " - Get label")
+    print(str(times[3] - times[0]) + " - Total")
+    print("-------------------------")
+
+    count += 1
+print("Time: " + str(time.clock() - start))
 
 # Stop and close the stream
 stream.stop_stream()
@@ -45,13 +176,23 @@ wf = wave.open(filename, 'wb')
 wf.setnchannels(channels)
 wf.setsampwidth(p.get_sample_size(sample_format))
 wf.setframerate(fs)
-wf.writeframes(b''.join(frames))
+wf.writeframes(b''.join(frames_byte))
 wf.close()
 
-# test = subprocess.Popen(["python", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS-for-MCU\label_wav.py", "--wav", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS-for-MCU/"+filename, "--graph", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS-for-MCU\Pretrained_models\CRNN\CRNN_L.pb", "--labels", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS-for-MCU\Pretrained_models\labels.txt", "--how_many_labels", "3"], stdout=subprocess.PIPE)
+#python D:\Pycharm Projects\KWS\KWS Base\ML-KWS\label_wav.py --wav D:\Pycharm Projects\KWS\KWS Base\ML-KWS/output.wav --graph D:\Pycharm Projects\KWS\KWS Base\ML-KWS/tmp/harry_debug/ten_words.pb --labels D:\Pycharm Projects\KWS\KWS Base\ML-KWS-for-MCU\Pretrained_models\labels.txt --how_many_labels 3
+#test = subprocess.Popen(["python", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS\label_wav.py", "--wav", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS/"+filename, "--graph", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS/tmp/harry_debug/ten_words.pb", "--labels", "D:\Pycharm Projects\KWS\KWS Base\ML-KWS-for-MCU\Pretrained_models\labels.txt", "--how_many_labels", "3"], stdout=subprocess.PIPE)
+# test = subprocess.Popen(["python", "label_wav.py", "--wav", filename, "--graph", "tmp/harry_debug/ten_words.pb", "--labels", "Pretrained_models\labels.txt", "--how_many_labels", "3"], stdout=subprocess.PIPE)
 # output = test.communicate()
+# print(output)
+
+#os.system("python label_wav.py --wav output.wav --graph tmp/harry_debug/ten_words.pb --labels Pretrained_models\labels.txt --how_many_labels 3")
+
 
 # label_wav.start(wav = filename,
 #           graph = "Pretrained_models/CRNN/CRNN_L.pb",
 #           labels = "Pretrained_models/labels.txt",
 #           how_many_labels = 3)
+
+# pylint: disable=unused-import
+from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
+# pylint: enable=unused-import
