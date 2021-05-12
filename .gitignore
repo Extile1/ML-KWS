@@ -12,8 +12,9 @@
 *.swp
 *.swo
 
+.gitignore
+
 Audio_Input/
-Live_Input/
 
-
+audio_processor_preprocessed.py
 
