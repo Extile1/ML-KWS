@@ -5,6 +5,7 @@ from __future__ import print_function
 import pyaudio
 import time
 import numpy as np
+#import librosa
 import wave
 import subprocess
 import os
@@ -12,6 +13,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import argparse
 import sys
 import warnings
+from scipy import signal
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import tensorflow as tf
@@ -80,16 +82,17 @@ def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
 
   run_graph(wav_data, labels_list, input_name, output_name, how_many_labels, times)
 
-chunk = 4000  # Record in chunks of 1024 samples
+chunk = 16384  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
-fs = 16000  # Record at 44100 samples per second
-seconds = 3
-clip_length = 1.5
+record_fs = 44100  # Record at 44100 samples per second
+fs = 16000
+seconds = 10
+clip_length = 1.5 * 2
 filename = "output"
 min_volume = 40 #can change to 500 after normalizing
 max_volume = 200
-window = 0.25 #min time between clips
+window = 0.5 * 2 #min time between clips
 min_sound_time = 0.005 #min time needed of consecutive noise
 
 def is_silent(snd_data):
@@ -113,7 +116,7 @@ print('Recording')
 
 stream = p.open(format=sample_format,
                 channels=channels,
-                rate=fs,
+                rate=record_fs,
                 frames_per_buffer=chunk,
                 input=True)
 
@@ -121,14 +124,30 @@ frames = []  # Initialize array to store frames
 index = 0
 consecutive = 0
 
+total = 0
+
 count = 0
 start = time.process_time()
 # Store data in chunks for 3 seconds
-for i in range(0, int(fs / chunk * seconds)):
+for i in range(0, int(record_fs / chunk * seconds)):
     times = [time.clock()]
-    data = stream.read(chunk)
+    data = stream.read(chunk, exception_on_overflow=False)
+    #print(data)
+    #data = np.frombuffer(data, np.int16)
+    data = list(data)
+    #print(data)
+    data = np.asarray(data)
+    #print(data)
+    #data = librosa.resample(data, fs, 16000)
+    data = signal.resample(data, int(data.size * fs / record_fs))
+    #data = data.tobytes()
+    data = data.astype(np.int16)
+    data = np.clip(data, 0, 255)
+    data = data.tolist()
     frames.extend(data)
-    print(data)
+    #print("length: " + str(len(data)))
+    #print(data)
+    total += len(data)
 
     while True:
         if int(clip_length * fs / 2) > index:
@@ -141,7 +160,8 @@ for i in range(0, int(fs / chunk * seconds)):
 
                 if True: #consecutive >= int(min_sound_time * fs):
                     print(index)
-                    print(frames[index - int(min_sound_time * fs):index+1])
+                    print(0.5 * index / fs)
+                    #print(frames[index - int(min_sound_time * fs):index+1])
                     temp_frames = frames[index - int(clip_length * fs / 2): index + int(clip_length * fs / 2)]
                     index += int(window * fs)
                     consecutive = 0
@@ -160,7 +180,7 @@ for i in range(0, int(fs / chunk * seconds)):
                     print(count)
                     # os.system("python label_wav.py --wav Live_Input/" + filename + str(count) + ".wav --graph tmp/harry_debug/ten_words.pb --labels Pretrained_models\labels.txt --how_many_labels 3")
                     label_wav("Live_Input/" + filename + str(count) + ".wav",
-                              "Pretrained_models\labels.txt",
+                              "Pretrained_models/labels.txt",
                               "tmp/harry_debug/ten_words.pb",
                               "wav_data:0",
                               "labels_softmax:0",
