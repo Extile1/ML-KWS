@@ -17,6 +17,7 @@ from scipy import signal
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import tensorflow as tf
+from matplotlib import pyplot as plt
 
 import label_wav as lw
 
@@ -82,18 +83,20 @@ def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
 
   run_graph(wav_data, labels_list, input_name, output_name, how_many_labels, times)
 
-chunk = 16384  # Record in chunks of 1024 samples
+chunk = 4000  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
-record_fs = 44100  # Record at 44100 samples per second
+record_fs = 16000  # Record at 44100 samples per second
 fs = 16000
 seconds = 10
-clip_length = 1.5 * 2
+clip_length = 1
 filename = "output"
-min_volume = 40 #can change to 500 after normalizing
+min_volume = 50 #can change to 500 after normalizing
 max_volume = 200
 window = 0.5 * 2 #min time between clips
 min_sound_time = 0.005 #min time needed of consecutive noise
+not_extreme_threshold = 0.02 #percentage of not extreme samples needed to be perceived as sound
+
 
 def is_silent(snd_data):
     "Returns 'True' if below the 'silent' threshold"
@@ -122,7 +125,10 @@ stream = p.open(format=sample_format,
 
 frames = []  # Initialize array to store frames
 index = 0
-consecutive = 0
+next_index = 0 #the next index outside the window
+not_extreme = 0 #number of samples that are not above max volume or below min volume
+extreme_list = []
+extreme_list_2 = []
 
 total = 0
 
@@ -135,68 +141,77 @@ for i in range(0, int(record_fs / chunk * seconds)):
     #print(data)
     #data = np.frombuffer(data, np.int16)
     data = list(data)
-    #print(data)
-    data = np.asarray(data)
-    #print(data)
-    #data = librosa.resample(data, fs, 16000)
-    data = signal.resample(data, int(data.size * fs / record_fs))
-    #data = data.tobytes()
-    data = data.astype(np.int16)
-    data = np.clip(data, 0, 255)
-    data = data.tolist()
+    # #print(data)
+    # data = np.asarray(data)
+    # #print(data)
+    # #data = librosa.resample(data, fs, 16000)
+    # data = signal.resample(data, int(data.size * fs / record_fs))
+    # #data = data.tobytes()
+    # data = data.astype(np.int16)
+    # data = np.clip(data, 0, 255)
+    # data = data.tolist()
     frames.extend(data)
     #print("length: " + str(len(data)))
     #print(data)
     total += len(data)
 
     while True:
-        if int(clip_length * fs / 2) > index:
-            index += 1
-        elif index + int(clip_length * fs / 2) > len(frames):
+        if (index % 1000 == 0):
+             print(not_extreme)
+        if index + int(clip_length * fs / 2) > len(frames):
             break
+        elif int(clip_length * fs / 2) > index:
+            if max_volume > frames[index] and frames[index] > min_volume:
+                not_extreme += 1
+                #extreme_list.append(index)
+            index += 1
         else:
             if max_volume > frames[index] and frames[index] > min_volume:
-                consecutive += 1
+                not_extreme += 1
+                #extreme_list.append(index)
+            if max_volume > frames[index - int(clip_length * fs / 2)] and frames[index - int(clip_length * fs / 2)] > min_volume:
+                not_extreme -= 1
+                #extreme_list_2.append(index - int(clip_length * fs / 2))
 
-                if True: #consecutive >= int(min_sound_time * fs):
-                    print(index)
-                    print(0.5 * index / fs)
-                    #print(frames[index - int(min_sound_time * fs):index+1])
-                    temp_frames = frames[index - int(clip_length * fs / 2): index + int(clip_length * fs / 2)]
-                    index += int(window * fs)
-                    consecutive = 0
+            if index >= next_index and not_extreme / (clip_length * fs / 2) > not_extreme_threshold: #consecutive >= int(min_sound_time * fs):
+                print(index)
+                print(0.5 * index / fs)
+                #print(frames[index - int(min_sound_time * fs):index+1])
+                temp_frames = frames[index - int(clip_length * fs / 2): index + int(clip_length * fs / 2)]
+                print(temp_frames)
+                #plt.scatter(list(range(len(temp_frames))), temp_frames)
+                #plt.show()
+                next_index = index + int(window * fs)
+                index += 1
 
-                    times.append(time.clock())
+                times.append(time.clock())
 
-                    wf = wave.open("Live_Input/" + filename + str(count) + ".wav", 'wb')
-                    wf.setnchannels(channels)
-                    wf.setsampwidth(p.get_sample_size(sample_format))
-                    wf.setframerate(fs)
-                    wf.writeframes(bytes(temp_frames))
-                    wf.close()
+                wf = wave.open("Live_Input/" + filename + str(count) + ".wav", 'wb')
+                wf.setnchannels(channels)
+                wf.setsampwidth(p.get_sample_size(sample_format))
+                wf.setframerate(fs)
+                wf.writeframes(bytes(temp_frames))
+                wf.close()
 
-                    times.append(time.clock())
+                times.append(time.clock())
 
-                    print(count)
-                    # os.system("python label_wav.py --wav Live_Input/" + filename + str(count) + ".wav --graph tmp/harry_debug/ten_words.pb --labels Pretrained_models\labels.txt --how_many_labels 3")
-                    label_wav("Live_Input/" + filename + str(count) + ".wav",
-                              "Pretrained_models/labels.txt",
-                              "tmp/harry_debug/ten_words.pb",
-                              "wav_data:0",
-                              "labels_softmax:0",
-                              3)
-                    times.append(time.clock())
-                    #print(str(times[1] - times[0]) + " - Load audio")
-                    #print(str(times[2] - times[1]) + " - Save audio")
-                    #print(str(times[3] - times[2]) + " - Get label")
-                    #print(str(times[3] - times[0]) + " - Total")
-                    print("-------------------------")
+                print(count)
+                # os.system("python label_wav.py --wav Live_Input/" + filename + str(count) + ".wav --graph tmp/harry_debug/ten_words.pb --labels Pretrained_models\labels.txt --how_many_labels 3")
+                label_wav("Live_Input/" + filename + str(count) + ".wav",
+                          "Pretrained_models/labels.txt",
+                          "tmp/harry_debug/ten_words.pb",
+                          "wav_data:0",
+                          "labels_softmax:0",
+                          3)
+                times.append(time.clock())
+                #print(str(times[1] - times[0]) + " - Load audio")
+                #print(str(times[2] - times[1]) + " - Save audio")
+                #print(str(times[3] - times[2]) + " - Get label")
+                #print(str(times[3] - times[0]) + " - Total")
+                print("-------------------------")
 
-                    count += 1
-                else:
-                    index += 1
+                count += 1
             else:
-                consecutive = 0
                 index += 1
 
 print("Time: " + str(time.clock() - start))
@@ -208,6 +223,8 @@ stream.close()
 p.terminate()
 
 print('Finished recording')
+#print(extreme_list)
+#print(extreme_list_2)
 
 # Save the recorded data as a WAV file
 wf = wave.open(filename + ".wav", 'wb')
