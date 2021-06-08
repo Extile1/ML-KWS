@@ -18,6 +18,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import tensorflow as tf
 from matplotlib import pyplot as plt
+import librosa
+import samplerate
 
 import label_wav as lw
 
@@ -86,9 +88,9 @@ def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
 chunk = 4000  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
-record_fs = 16000  # Record at 44100 samples per second
+record_fs = 44100  # Record at 44100 samples per second
 fs = 16000
-seconds = 10
+seconds = 5
 clip_length = 1
 filename = "output"
 min_volume = 50 #can change to 500 after normalizing
@@ -135,29 +137,40 @@ total = 0
 count = 0
 start = time.process_time()
 # Store data in chunks for 3 seconds
-for i in range(0, int(record_fs / chunk * seconds)):
+for i in [0,1,2,3,4]: #range(0, int(record_fs / chunk * seconds)):
     times = [time.clock()]
     data = stream.read(chunk, exception_on_overflow=False)
     #print(data)
     #data = np.frombuffer(data, np.int16)
     data = list(data)
-    # #print(data)
-    # data = np.asarray(data)
-    # #print(data)
-    # #data = librosa.resample(data, fs, 16000)
+    plt.scatter(list(range(len(data))), data, s = [4] * len(data))
+    print(data)
+    data = np.asarray(data)
+    data = data.astype(np.float64)
+    data *= 2 / 255.0
+    data -= 1
+    # #data = librosa.resample(data, record_fs, fs, res_type='linear')
+    resampler = samplerate.Resampler()
+    data = resampler.process(data, fs / record_fs)
     # data = signal.resample(data, int(data.size * fs / record_fs))
     # #data = data.tobytes()
-    # data = data.astype(np.int16)
+    data *= 1 / np.max(np.abs(data),axis=0)
+    data += 1
+    data *= 255.0 / 2
+    data = data.astype(np.int16)
     # data = np.clip(data, 0, 255)
-    # data = data.tolist()
+    data = data.tolist()
+    print(data)
+    plt.scatter(list(map(lambda x: x * record_fs / fs, range(len(data)))), data, s = [4] * len(data))
+    plt.show()
     frames.extend(data)
     #print("length: " + str(len(data)))
     #print(data)
     total += len(data)
 
     while True:
-        if (index % 1000 == 0):
-             print(not_extreme)
+        # if (index % 1000 == 0):
+        #      print(not_extreme)
         if index + int(clip_length * fs / 2) > len(frames):
             break
         elif int(clip_length * fs / 2) > index:
