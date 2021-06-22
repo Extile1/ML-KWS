@@ -18,7 +18,6 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import tensorflow as tf
 from matplotlib import pyplot as plt
-import librosa
 import samplerate
 import struct
 import label_wav as lw
@@ -93,7 +92,7 @@ fs = 16000
 seconds = 10
 clip_length = 1
 filename = "output"
-min_volume = 200 #can change to 500 after normalizing
+min_volume = 500 #can change to 500 after normalizing
 max_volume = 32768
 window = 0.5 * 2 #min time between clips
 min_sound_time = 0.005 #min time needed of consecutive noise
