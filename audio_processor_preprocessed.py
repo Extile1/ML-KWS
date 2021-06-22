@@ -20,7 +20,7 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 import librosa
 import samplerate
-
+import struct
 import label_wav as lw
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -85,19 +85,19 @@ def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
 
   run_graph(wav_data, labels_list, input_name, output_name, how_many_labels, times)
 
-chunk = 4000  # Record in chunks of 1024 samples
+chunk = 8000  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
 record_fs = 44100  # Record at 44100 samples per second
 fs = 16000
-seconds = 5
+seconds = 10
 clip_length = 1
 filename = "output"
-min_volume = 50 #can change to 500 after normalizing
-max_volume = 200
+min_volume = 200 #can change to 500 after normalizing
+max_volume = 32768
 window = 0.5 * 2 #min time between clips
 min_sound_time = 0.005 #min time needed of consecutive noise
-not_extreme_threshold = 0.02 #percentage of not extreme samples needed to be perceived as sound
+not_extreme_threshold = 0.25 #percentage of not extreme samples needed to be perceived as sound
 
 
 def is_silent(snd_data):
@@ -137,56 +137,65 @@ total = 0
 count = 0
 start = time.process_time()
 # Store data in chunks for 3 seconds
-for i in [0,1,2,3,4]: #range(0, int(record_fs / chunk * seconds)):
+for i in range(0, int(record_fs / chunk * seconds)):
     times = [time.clock()]
     data = stream.read(chunk, exception_on_overflow=False)
+    #format = "%dh" % (len(data) / 2)
+    #print("struct")
+    #print(struct.unpack(format,data))
     #print(data)
     #data = np.frombuffer(data, np.int16)
-    data = list(data)
-    plt.scatter(list(range(len(data))), data, s = [4] * len(data))
-    print(data)
-    data = np.asarray(data)
-    data = data.astype(np.float64)
-    data *= 2 / 255.0
-    data -= 1
+    #data = list(data)
+    data = np.fromstring(data, np.int16)
+    #plt.scatter(list(range(len(data))), data, s = [1] * len(data))
+    #print("numpy")
+    #print(data.tolist())
+    #data = np.asarray(data)
+    #data = data.astype(np.float64)
+    #data *= 2 / 255.0
+    #data -= 1
     # #data = librosa.resample(data, record_fs, fs, res_type='linear')
     resampler = samplerate.Resampler()
     data = resampler.process(data, fs / record_fs)
     # data = signal.resample(data, int(data.size * fs / record_fs))
     # #data = data.tobytes()
-    data *= 1 / np.max(np.abs(data),axis=0)
-    data += 1
-    data *= 255.0 / 2
+    #data *= 1 / np.max(np.abs(data),axis=0)
+    #data += 1
+    #data *= 255.0 / 2
+    #print(data)
     data = data.astype(np.int16)
     # data = np.clip(data, 0, 255)
     data = data.tolist()
-    print(data)
-    plt.scatter(list(map(lambda x: x * record_fs / fs, range(len(data)))), data, s = [4] * len(data))
-    plt.show()
+    #print(data)
+    #print("packed")
+    #format = "%dh" % (len(data))
+    #print(struct.pack(format, *data))
+    #plt.scatter(list(map(lambda x: x * record_fs / fs, range(len(data)))), data, s = [1] * len(data))
+    #plt.show()
     frames.extend(data)
     #print("length: " + str(len(data)))
     #print(data)
     total += len(data)
 
     while True:
-        # if (index % 1000 == 0):
-        #      print(not_extreme)
+        if (index % 1000 == 0):
+             print(not_extreme)
         if index + int(clip_length * fs / 2) > len(frames):
             break
         elif int(clip_length * fs / 2) > index:
-            if max_volume > frames[index] and frames[index] > min_volume:
+            if max_volume > abs(frames[index]) and abs(frames[index]) > min_volume:
                 not_extreme += 1
                 #extreme_list.append(index)
             index += 1
         else:
-            if max_volume > frames[index] and frames[index] > min_volume:
+            if max_volume > abs(frames[index]) and abs(frames[index]) > min_volume:
                 not_extreme += 1
                 #extreme_list.append(index)
-            if max_volume > frames[index - int(clip_length * fs / 2)] and frames[index - int(clip_length * fs / 2)] > min_volume:
+            if max_volume > abs(frames[index - int(clip_length * fs / 2)]) and abs(frames[index - int(clip_length * fs / 2)]) > min_volume:
                 not_extreme -= 1
                 #extreme_list_2.append(index - int(clip_length * fs / 2))
 
-            if index >= next_index and not_extreme / (clip_length * fs / 2) > not_extreme_threshold: #consecutive >= int(min_sound_time * fs):
+            if index >= next_index and not_extreme / (clip_length * fs / 2) > not_extreme_threshold:
                 print(index)
                 print(0.5 * index / fs)
                 #print(frames[index - int(min_sound_time * fs):index+1])
@@ -203,7 +212,8 @@ for i in [0,1,2,3,4]: #range(0, int(record_fs / chunk * seconds)):
                 wf.setnchannels(channels)
                 wf.setsampwidth(p.get_sample_size(sample_format))
                 wf.setframerate(fs)
-                wf.writeframes(bytes(temp_frames))
+                format = "%dh" % (len(temp_frames))
+                wf.writeframes(struct.pack(format, *temp_frames))
                 wf.close()
 
                 times.append(time.clock())
@@ -235,6 +245,9 @@ stream.close()
 # Terminate the PortAudio interface
 p.terminate()
 
+plt.scatter(list(map(lambda x: x * record_fs / fs, range(len(frames)))), frames, s = [1] * len(frames))
+plt.show()
+
 print('Finished recording')
 #print(extreme_list)
 #print(extreme_list_2)
@@ -244,7 +257,8 @@ wf = wave.open(filename + ".wav", 'wb')
 wf.setnchannels(channels)
 wf.setsampwidth(p.get_sample_size(sample_format))
 wf.setframerate(fs)
-wf.writeframes(bytes(frames))
+format = "%dh" % (len(frames))
+wf.writeframes(struct.pack(format, *frames))
 wf.close()
 
 #python D:\Pycharm Projects\KWS\KWS Base\ML-KWS\label_wav.py --wav D:\Pycharm Projects\KWS\KWS Base\ML-KWS/output.wav --graph D:\Pycharm Projects\KWS\KWS Base\ML-KWS/tmp/harry_debug/ten_words.pb --labels D:\Pycharm Projects\KWS\KWS Base\ML-KWS-for-MCU\Pretrained_models\labels.txt --how_many_labels 3
