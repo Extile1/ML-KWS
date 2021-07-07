@@ -1,8 +1,14 @@
+import pyaudio
 import librosa
 import samplerate
 import wave
 import numpy as np
 from matplotlib import pyplot as plt
+
+p = pyaudio.PyAudio()
+print(p.get_device_info_by_index(2))
+print(p.get_default_input_device_info())
+quit()
 
 y, sr = librosa.load("unsampled.wav", sr=16000)
 # ratio = 16000 / sr

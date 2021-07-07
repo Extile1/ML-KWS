@@ -89,7 +89,7 @@ sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
 record_fs = 44100  # Record at 44100 samples per second
 fs = 16000
-seconds = 10
+seconds = 20
 clip_length = 1
 filename = "output"
 min_volume = 500 #can change to 500 after normalizing
@@ -178,8 +178,8 @@ for i in range(0, int(record_fs / chunk * seconds)):
     total += len(data)
 
     while True:
-        if (index % 1000 == 0):
-             print(not_extreme)
+        # if (index % 1000 == 0):
+        #      print(not_extreme)
         if index + int(clip_length * fs / 2) > len(frames):
             break
         elif int(clip_length * fs / 2) > index:
@@ -196,11 +196,11 @@ for i in range(0, int(record_fs / chunk * seconds)):
                 #extreme_list_2.append(index - int(clip_length * fs / 2))
 
             if index >= next_index and not_extreme / (clip_length * fs / 2) > not_extreme_threshold:
-                print(index)
-                print(0.5 * index / fs)
+                #print(index)
+                #print(0.5 * index / fs)
                 #print(frames[index - int(min_sound_time * fs):index+1])
                 temp_frames = frames[index - int(clip_length * fs / 2): index + int(clip_length * fs / 2)]
-                print(temp_frames)
+                #print(temp_frames)
                 #plt.scatter(list(range(len(temp_frames))), temp_frames)
                 #plt.show()
                 next_index = index + int(window * fs)
@@ -218,7 +218,7 @@ for i in range(0, int(record_fs / chunk * seconds)):
 
                 times.append(time.clock())
 
-                print(count)
+                #print(count)
                 # os.system("python label_wav.py --wav Live_Input/" + filename + str(count) + ".wav --graph tmp/harry_debug/ten_words.pb --labels Pretrained_models\labels.txt --how_many_labels 3")
                 label_wav("Live_Input/" + filename + str(count) + ".wav",
                           "Pretrained_models/labels.txt",
@@ -237,7 +237,7 @@ for i in range(0, int(record_fs / chunk * seconds)):
             else:
                 index += 1
 
-print("Time: " + str(time.clock() - start))
+# print("Time: " + str(time.clock() - start))
 
 # Stop and close the stream
 stream.stop_stream()
@@ -245,8 +245,8 @@ stream.close()
 # Terminate the PortAudio interface
 p.terminate()
 
-plt.scatter(list(map(lambda x: x * record_fs / fs, range(len(frames)))), frames, s = [1] * len(frames))
-plt.show()
+# plt.scatter(list(map(lambda x: x * record_fs / fs, range(len(frames)))), frames, s = [1] * len(frames))
+# plt.show()
 
 print('Finished recording')
 #print(extreme_list)
