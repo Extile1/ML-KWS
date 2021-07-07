@@ -8,7 +8,7 @@ sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
 record_fs = 44100  # Record at 44100 samples per second
 seconds = 3
-filename = "output"
+filename = "output_raspberry"
 
 p = pyaudio.PyAudio()
 
@@ -18,7 +18,7 @@ stream = p.open(format=sample_format,
                 channels=channels,
                 rate=record_fs,
                 frames_per_buffer=chunk,
-                input_device_index=1,
+                #input_device_index=1,
                 input=True)
 
 frames = []  # Initialize array to store frames
