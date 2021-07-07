@@ -1,5 +1,7 @@
 import pyaudio
 import wave
+import numpy as np
+from matplotlib import pyplot as plt
 
 chunk = 8000  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
@@ -20,11 +22,14 @@ stream = p.open(format=sample_format,
                 input=True)
 
 frames = []  # Initialize array to store frames
-
+int_frames = []
 
 for i in range(0, int(record_fs / chunk * seconds)):
     data = stream.read(chunk, exception_on_overflow=False)
     frames.append(data)
+    data = np.fromstring(data, np.int16)
+    data = data.tolist()
+    int_frames.extend(data)
 
 stream.stop_stream()
 stream.close()
@@ -40,3 +45,6 @@ wf.setframerate(record_fs)
 # wf.writeframes(struct.pack(format, *frames))
 wf.writeframes(b''.join(frames))
 wf.close()
+
+plt.scatter(list(map(lambda x: x * record_fs / record_fs, range(len(int_frames)))), int_frames, s = [0.5] * len(int_frames))
+plt.show()
