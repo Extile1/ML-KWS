@@ -87,7 +87,7 @@ def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
 
 chunk = 8000  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
-channels = 1
+channels = 2
 record_fs = 44100  # Record at 44100 samples per second
 fs = 16000
 seconds = 10
