@@ -22,6 +22,7 @@ import samplerate
 import struct
 import label_wav as lw
 import time
+import random
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
@@ -87,7 +88,7 @@ def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
 
 chunk = 8000  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
-channels = 2
+channels = 1
 record_fs = 44100  # Record at 44100 samples per second
 fs = 16000
 seconds = 10
@@ -130,20 +131,29 @@ total = 0
 count = 0
 start = time.process_time()
 
+length_1 = 0
+length_2 = 0
+print(int(record_fs * seconds))
+print(int(fs * seconds))
+
 def callback(in_data, frame_count, time_info, flag):
-    global frames, total, index, not_extreme, count, next_index #global variables for filter coefficients and array
+    global frames, total, index, not_extreme, count, next_index, length_1, length_2 #global variables for filter coefficients and array
     times = [time.clock()]
+    print(frame_count)
     data = np.fromstring(in_data, np.int16)
+    length_1 += frame_count
     resampler = samplerate.Resampler()
     data = resampler.process(data, fs / record_fs)
     data = data.astype(np.int16)
     data = data.tolist()
+    length_2 += len(data)
+
     frames.extend(data)
     total += len(data)
 
     while True:
-        if (index % 1000 == 0):
-            print(not_extreme)
+        # if (index % 1000 == 0):
+        #     print(not_extreme)
         if index + int(clip_length * fs / 2) > len(frames):
             break
         elif int(clip_length * fs / 2) > index:
@@ -201,13 +211,16 @@ def callback(in_data, frame_count, time_info, flag):
                 count += 1
             else:
                 index += 1
-    return (in_data, pyaudio.paContinue)
+    if length_1 >= record_fs * seconds * channels:
+        return (in_data, pyaudio.paComplete)
+    else:
+        return (in_data, pyaudio.paContinue)
 
 
 stream = p.open(format=sample_format,
                 channels=channels,
                 rate=record_fs,
-                #frames_per_buffer=chunk,
+                frames_per_buffer=chunk,
                 #input_device_index=1,
                 input=True,
                 stream_callback=callback)
@@ -218,15 +231,18 @@ stream.start_stream()
 
 while stream.is_active():
     time.sleep(seconds)
-    stream.stop_stream()
 stream.close()
 
 p.terminate()
 
+print(length_1)
+print(length_2)
+
+print('Finished recording')
+
 plt.scatter(list(map(lambda x: x * record_fs / fs, range(len(frames)))), frames, s = [1] * len(frames))
 plt.show()
 
-print('Finished recording')
 #print(extreme_list)
 #print(extreme_list_2)
 
