@@ -65,9 +65,10 @@ p = pyaudio.PyAudio()
 frames = []
 index = 0
 next_index = 0 #the next index outside the window
+length_1 = 0
 
 def callback(in_data, frame_count, time_info, flag):
-    global frames, total, index, not_extreme, count, next_index, length_1, length_2 #global variables for filter coefficients and array\
+    global frames, index, next_index, length_1 #global variables for filter coefficients and array\
     length_1 += frame_count
     data = np.fromstring(in_data, np.int16)
     data = data.tolist()
