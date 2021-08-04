@@ -12,6 +12,8 @@ record_fs = 44100  # Record at 44100 samples per second
 seconds = 3
 filename = "output"
 
+print(sd.query_devices())
+
 # p = pyaudio.PyAudio()
 #
 # print("Recording")
@@ -53,6 +55,8 @@ print("Recording")
 
 myrecording = sd.rec(int(seconds * record_fs), samplerate=record_fs, channels=channels)
 sd.wait()  # Wait until recording is finished
+print(myrecording)
+print(myrecording.shape)
 write(filename + '.wav', record_fs, myrecording)  # Save as WAV file
 
 plt.scatter(list(map(lambda x: x * record_fs / record_fs, range(len(myrecording)))), myrecording, s = [0.5] * len(myrecording))
